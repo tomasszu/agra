@@ -1,0 +1,1065 @@
+ARM GAS  agra.s 			page 1
+
+
+   1              		.text
+   2              		.align	2
+   3              		.global	setPixColor
+   4              		.type	setPixColor, %function
+   5              	setPixColor:
+   6 0000 981B9FE5 		ldr r1, color_addr  // ielade atminas lauku datu sekcijaa
+   7 0004 000081E5 		str r0, [r1]		//saglabaa adresi uz color_op atminas laukaa
+   8 0008 1EFF2FE1 		bx lr
+   9              		.size	setPixColor, .-setPixColor
+  10              	
+  11              	
+  12              		.global	pixel
+  13              		.type	pixel, %function
+  14              	pixel:
+  15 000c 30482DE9 		stmfd sp!, {r4,r5,fp,lr}
+  16 0010 0CB08DE2 		add fp, sp, #12	// aizbidam fp, 3 vietas uz augsu no sp
+  17 0014 10D04DE2 		sub sp, sp, #16	//atbrivojam vel 4 vietas uz leju stekaa
+  18              	
+  19 0018 00008DE5 		str r0, [sp]	// saglabajam r0 (x) stekaa
+  20 001c 04108DE5 		str r1, [sp, #4]	// saglabajam r1 (y) stekaa
+  21 0020 08208DE5 		str r2, [sp, #8]	// saglabajam r2 (color_op) stekaa
+  22              		buffer_clear:
+  23 0024 783B9FE5 			ldr r3, clean_addr
+  24 0028 0000D3E5 			ldrb r0, [r3, #0]
+  25 002c 010050E3 			cmp r0, #0x01
+  26 0030 0400000A 			beq pixel_main
+  27 0034 09482DE9 			stmfd sp!, {r0,r3,fp,lr}
+  28 0038 FEFFFFEB 			bl clear
+  29 003c 0948BDE8 			ldmfd sp!, {r0,r3,fp,lr}
+  30 0040 0100A0E3 			mov r0, #0x01
+  31 0044 0000C3E5 			strb r0, [r3, #0]
+  32              		pixel_main:
+  33 0048 FEFFFFEB 		bl FrameBufferGetWidth
+  34 004c 0C008DE5 		str r0, [sp, #12]	// saglabajam r0 (FrameWidth) stekaa
+  35 0050 FEFFFFEB 		bl FrameBufferGetHeight
+  36              		// ignorejam pikselus arpus kadra
+  37              		yRangeCheck:
+  38 0054 04109DE5 		ldr r1, [sp, #4]	// r1 = y
+  39 0058 010050E1 		cmp r0, r1			// ja FrameHeight < y
+  40 005c 190000DA 		ble end 			// break
+  41 0060 000051E3 		cmp r1, #0			// ja y < 0
+  42 0064 170000BA 		blt end 			// break
+  43              		xRangeCheck:
+  44 0068 0C009DE5 		ldr r0, [sp, #12]	// r0 = FrameWidth
+  45 006c 00109DE5 		ldr r1, [sp]		// r1 = x
+  46 0070 010050E1 		cmp r0, r1			// ja FrameWidth < x
+  47 0074 130000DA 		ble end 			// break
+  48 0078 000051E3 		cmp r1, #0			// ja x < 0
+  49 007c 110000BA 		blt end 			// break
+  50              	
+  51 0080 FEFFFFEB 		bl FrameBufferGetAddress
+  52 0084 0040A0E1 		mov r4, r0			// r4 = buff addr
+  53 0088 04309DE5 		ldr r3, [sp, #4]	// ielade y no steka
+  54 008c 0331A0E1 		mov r3, r3, lsl #2
+  55 0090 0C109DE5 		ldr r1, [sp, #12]	// ielade FrameWidth no steka
+  56 0094 910303E0 		mul r3, r1, r3		//y*FrameWidth
+  57 0098 00209DE5 		ldr r2, [sp]		// ielade x no steka
+ARM GAS  agra.s 			page 2
+
+
+  58 009c 0221A0E1 		mov r2, r2, lsl #2
+  59 00a0 025083E0 		add r5, r3, r2		// +x
+  60 00a4 08209DE5 		ldr r2, [sp, #8]	// ielade color_op
+  61 00a8 000092E5 		ldr r0, [r2, #0]	// !!!! cancel vnk JO VERTIB VAIG IZLOBIT
+  62              		//gatavojamies pixelOp funkcijai
+  63 00ac 051094E7 		ldr r1, [r4, r5]	// r1 = buffer[y*FrameWidth+x]
+  64 00b0 0020A0E3 		mov r2, #0
+  65 00b4 0030A0E3 		mov r3, #0
+  66              	
+  67 00b8 32002DE9 		stmfd sp!, {r1,r4,r5}
+  68 00bc FEFFFFEB 		bl pixelOp
+  69 00c0 3200BDE8 		ldmfd sp!, {r1,r4,r5}
+  70              	
+  71 00c4 050084E7 		str r0, [r4, r5]	// buffer[y*FrameWidth+x] = r5
+  72              	
+  73              		end:
+  74 00c8 0CD04BE2 		sub sp, fp, #12	// aizbidam sp, 3 vietu uz leju no fp
+  75 00cc 3048BDE8 		ldmfd sp!, {r4,r5,fp,lr}
+  76 00d0 1EFF2FE1 		bx lr
+  77              		.size	pixel, .-pixel
+  78              	
+  79              		.global	pixelOp
+  80              		.type	pixelOp, %function
+  81              	pixelOp:
+  82 00d4 10482DE9 		stmfd sp!, {r4,fp,lr}
+  83 00d8 08B08DE2 		add fp, sp, #8	// aizbidam fp, 2 vietu uz augsu no sp
+  84              		// iegustam op bitus
+  85 00dc 032100E2 		and r2, r0, #0xC0000000
+  86 00e0 000052E3 		cmp r2, #0x00
+  87 00e4 1400000A 		beq endOp 		// ja 0, tad rakstam paari
+  88              		// iegustam krasas izveli bez op bitiem
+  89 00e8 0331C0E3 		and r3, r0, #0x3FFFFFFF
+  90 00ec 0141A0E3 		ldr r4, =0x40000000
+  91 00f0 040052E1 		cmp r2, r4	// vai veicama AND operacija
+  92 00f4 0300001A 		bne orCheck
+  93              		// iegustam buffer pikseli bez op bitiem
+  94 00f8 0311C1E3 		and r1, r1, #0x3FFFFFFF
+  95 00fc 013003E0 		and r3, r3, r1	//pixcolor AND buffer pix
+  96 0100 030084E0 		add r0, r4, r3  //pieliekam krasai klat AND op izveli
+  97 0104 0C0000EA 		b endOp
+  98              		orCheck:
+  99 0108 0241A0E3 		ldr r4, =0x80000000
+ 100 010c 040052E1 		cmp r2, r4 // vai veicama OR operacija
+ 101 0110 0300001A 		bne xorCheck
+ 102              		// iegustam buffer pikseli bez op bitiem
+ 103 0114 0311C1E3 		and r1, r1, #0x3FFFFFFF
+ 104 0118 013083E1 		orr r3, r3, r1	//pixcolor OR buffer pix
+ 105 011c 030084E0 		add r0, r4, r3  //pieliekam krasai klat OR op izveli
+ 106 0120 050000EA 		b endOp
+ 107              		xorCheck:
+ 108 0124 0341A0E3 		ldr r4, =0xC0000000
+ 109 0128 040052E1 		cmp r2, r4 // vai veicama OR operacija
+ 110 012c 0200001A 		bne endOp
+ 111              		// iegustam buffer pikseli bez op bitiem
+ 112 0130 0311C1E3 		and r1, r1, #0x3FFFFFFF
+ 113 0134 013023E0 		eor r3, r3, r1	//pixcolor XOR buffer pix
+ 114 0138 030084E0 		add r0, r4, r3  //pieliekam krasai klat XOR op izveli
+ARM GAS  agra.s 			page 3
+
+
+ 115              	
+ 116              		endOp:
+ 117 013c 1048BDE8 		ldmfd sp!, {r4,fp,lr}
+ 118 0140 1EFF2FE1 		bx lr
+ 119              		.size	pixelOp, .-pixelOp
+ 120              	
+ 121              		.global	line
+ 122              		.type	line, %function
+ 123              	line:
+ 124 0144 10482DE9 		stmfd sp!, {r4,fp,lr}
+ 125 0148 08B08DE2 		add	fp, sp, #8		// aizbidam fp, 2 vietas uz augsu no sp
+ 126 014c 28D04DE2 		sub	sp, sp, #40		//atbrivojam vel 10 vietas uz leju stekaa
+ 127 0150 0C008DE5 		str	r0, [sp, #12]	// x1 stekaa
+ 128 0154 08108DE5 		str	r1, [sp, #8]	// y1 stekaa
+ 129 0158 04208DE5 		str	r2, [sp, #4]	// x2 stekaa
+ 130 015c 00308DE5 		str	r3, [sp]		// y2 stekaa
+ 131              	
+ 132 0160 000052E1 		cmp	r2, r0			//(x2>x1)
+ 133 0164 020000DA 		ble	x2Smaller
+ 134 0168 004042E0 			sub	r4, r2, r0	//dx = x2-x1
+ 135 016c 10408DE5 			str	r4, [sp, #16]	// dx stekaa
+ 136 0170 010000EA 			b	yCheck
+ 137              		x2Smaller:
+ 138 0174 024040E0 			sub	r4, r0, r2		//dx = x1-x2
+ 139 0178 10408DE5 			str	r4, [sp, #16]	//dx stekaa
+ 140              		yCheck:
+ 141 017c 010053E1 			cmp	r3, r1			//(y2>y1)
+ 142 0180 020000DA 			ble	y2Smaller
+ 143 0184 014043E0 				sub	r4, r3, r1		//dy = y2-y1
+ 144 0188 14408DE5 				str	r4, [sp, #20]	//dy stekaa
+ 145 018c 010000EA 				b	dAssign
+ 146              			y2Smaller:
+ 147 0190 034041E0 				sub	r4, r1, r3		//dy = y1-y2
+ 148 0194 14408DE5 				str	r4, [sp, #20]	//dy stekaa
+ 149              		dAssign:
+ 150 0198 004064E2 			rsb	r4, r4, #0		//dy = dy*(-1)
+ 151 019c 14408DE5 			str	r4, [sp, #20]
+ 152 01a0 020050E1 			cmp	r0, r2			//if(x1>=x2)
+ 153 01a4 020000AA 			bge	x1Larger_2
+ 154 01a8 0140A0E3 				mov	r4, #1
+ 155 01ac 18408DE5 				str	r4, [sp, #24]	//sx = 1
+ 156 01b0 010000EA 				b	yCheck_2
+ 157              			x1Larger_2:
+ 158 01b4 0040E0E3 				mvn	r4, #0
+ 159 01b8 18408DE5 				str	r4, [sp, #24]	//sx = 0
+ 160              		yCheck_2:
+ 161 01bc 030051E1 			cmp	r1, r3			//if(y1>=y2)
+ 162 01c0 020000AA 			bge	y1Larger
+ 163 01c4 0140A0E3 				mov	r4, #1
+ 164 01c8 1C408DE5 				str	r4, [sp, #28]	//sy = 1
+ 165 01cc 010000EA 				b	errAssign
+ 166              			y1Larger:
+ 167 01d0 0040E0E3 				mvn	r4, #0
+ 168 01d4 1C408DE5 				str	r4, [sp, #28]	//sy = 0
+ 169              		errAssign:
+ 170 01d8 10209DE5 			ldr	r2, [sp, #16]	//dx
+ 171 01dc 14309DE5 			ldr	r3, [sp, #20]	//dy
+ARM GAS  agra.s 			page 4
+
+
+ 172 01e0 033082E0 			add	r3, r2, r3		// err = dx + dy
+ 173 01e4 20308DE5 			str	r3, [sp, #32]	//err
+ 174              		lineLoop:
+ 175 01e8 B0499FE5 			ldr r4, color_addr // ielade adresi uz .data lauku
+ 176 01ec 002094E5 			ldr r2, [r4, #0]   // panem color_op adresi no .data lauka
+ 177 01f0 08109DE5 			ldr	r1, [sp, #8]	//y1
+ 178 01f4 0C009DE5 			ldr	r0, [sp, #12]	//x1
+ 179 01f8 FEFFFFEB 			bl	pixel
+ 180 01fc 0C209DE5 			ldr	r2, [sp, #12]	//x1
+ 181 0200 04309DE5 			ldr	r3, [sp, #4]	//x2
+ 182 0204 030052E1 			cmp	r2, r3			// if (x1 == x2
+ 183 0208 0300001A 			bne	continue
+ 184 020c 08209DE5 				ldr	r2, [sp, #8]	//y1
+ 185 0210 00309DE5 				ldr	r3, [sp]		//y2
+ 186 0214 030052E1 				cmp	r2, r3			// && y1 == y2)
+ 187 0218 1600000A 				beq	EndLine			// break
+ 188              		continue:
+ 189 021c 20309DE5 			ldr	r3, [sp, #32]	//err
+ 190 0220 8340A0E1 			lsl	r4, r3, #1		//e2 = 2 * err;
+ 191 0224 24408DE5 			str	r4, [sp, #36]	//e2
+ 192 0228 14209DE5 			ldr	r2, [sp, #20]	//dy
+ 193 022c 020054E1 			cmp	r4, r2			// if (e2 >= dy)
+ 194 0230 050000BA 			blt	check2 
+ 195 0234 033082E0 				add	r3, r2, r3		//err += dy
+ 196 0238 20308DE5 				str	r3, [sp, #32]
+ 197 023c 0C209DE5 				ldr	r2, [sp, #12]	//x1
+ 198 0240 18309DE5 				ldr	r3, [sp, #24]	//sx
+ 199 0244 033082E0 				add	r3, r2, r3		//x1 += sx
+ 200 0248 0C308DE5 				str	r3, [sp, #12]
+ 201              			check2:
+ 202 024c 10309DE5 				ldr	r3, [sp, #16]	//dx
+ 203 0250 030054E1 				cmp	r4, r3			// if (e2 <= dx)
+ 204 0254 E3FFFFCA 				bgt	lineLoop
+ 205 0258 20209DE5 					ldr	r2, [sp, #32]	//err
+ 206 025c 033082E0 					add	r3, r2, r3		//err += dx
+ 207 0260 20308DE5 					str	r3, [sp, #32]
+ 208 0264 08209DE5 					ldr	r2, [sp, #8]	//y1
+ 209 0268 1C309DE5 					ldr	r3, [sp, #28]	//sy
+ 210 026c 033082E0 					add	r3, r2, r3		//y0 += sy
+ 211 0270 08308DE5 					str	r3, [sp, #8]
+ 212 0274 DBFFFFEA 					b	lineLoop
+ 213              	
+ 214              		EndLine:
+ 215 0278 08D04BE2 			sub	sp, fp, #8
+ 216 027c 1048BDE8 			ldmfd sp!, {r4,fp,lr}
+ 217 0280 1EFF2FE1 			bx lr
+ 218              		.size	line, .-line
+ 219              	
+ 220              		.global	circle
+ 221              		.type	circle, %function
+ 222              	circle:
+ 223 0284 30482DE9 		stmfd sp!, {r4,r5,fp,lr}
+ 224 0288 0CB08DE2 		add fp, sp, #12	// aizbidam fp, 3 vietu uz augsu no sp
+ 225 028c 08D04DE2 		sub sp, sp, #8	//atbrivojam vel 2 vietas uz leju stekaa
+ 226              	
+ 227 0290 00208DE5 		str r2, [sp]	// saglabajam r2 (r) stekaa
+ 228              	
+ARM GAS  agra.s 			page 5
+
+
+ 229 0294 0020A0E3 		mov r2, #0		// int P = 0
+ 230 0298 00309DE5 		ldr r3, [sp]	// int Q = r
+ 231 029c 0340A0E1 		mov r4, r3
+ 232 02a0 8440A0E1 		mov r4, r4, lsl #1	//(2*r)
+ 233 02a4 034064E2 		rsb r4, r4, #3 // D = 3-(2*r);
+ 234 02a8 04408DE5 		str r4, [sp, #4]	// saglabajam r4 (D) stekaa
+ 235              	
+ 236 02ac 0F002DE9 		stmfd sp!, {r0,r1,r2,r3}
+ 237 02b0 FEFFFFEB 		bl Do8Ways
+ 238 02b4 0F00BDE8 		ldmfd sp!, {r0,r1,r2,r3}
+ 239              	
+ 240              		loop_4:
+ 241 02b8 04409DE5 			ldr r4, [sp, #4] // D
+ 242 02bc 000054E3 			cmp r4, #0	//(D < 0)
+ 243 02c0 050000AA 			bge dHigher_3 //if(D >= 0)
+ 244 02c4 0251A0E1 				mov r5, r2, lsl #2	//4*P
+ 245 02c8 065085E2 				add r5, r5, #6		//(4*P + 6)
+ 246 02cc 054084E0 				add r4, r4, r5		// D += (4*P + 6);
+ 247 02d0 04408DE5 				str r4, [sp, #4]
+ 248 02d4 012082E2 				add r2, r2, #1		//++P
+ 249 02d8 060000EA 				b print_4
+ 250              				dHigher_3:
+ 251 02dc 035042E0 				sub r5, r2, r3		//(P-Q)
+ 252 02e0 0551A0E1 				mov r5, r5, lsl #2	//4*(P-Q)
+ 253 02e4 0A5085E2 				add r5, r5, #10		//(4*(P-Q) + 10)
+ 254 02e8 054084E0 				add r4, r4, r5		//D += (4*(P-Q) + 10);
+ 255 02ec 04408DE5 				str r4, [sp, #4]
+ 256 02f0 012082E2 				add r2, r2, #1		//++P
+ 257 02f4 013043E2 				sub r3, r3, #1		//--Q
+ 258              			print_4:
+ 259 02f8 0F002DE9 					stmfd sp!, {r0,r1,r2,r3}
+ 260 02fc FEFFFFEB 					bl Do8Ways
+ 261 0300 0F00BDE8 					ldmfd sp!, {r0,r1,r2,r3}
+ 262              		while_4:
+ 263 0304 030052E1 			cmp r2, r3
+ 264 0308 EAFFFFDA 			ble loop_4
+ 265              	
+ 266 030c 0CD04BE2 		sub sp, fp, #12	// aizbidam sp, 3 vietas uz leju no fp
+ 267 0310 3048BDE8 		ldmfd sp!, {r4,r5,fp,lr}
+ 268 0314 1EFF2FE1 		bx lr
+ 269              		.size	circle, .-circle
+ 270              	
+ 271              		.global	Do8Ways
+ 272              		.type	Do8Ways, %function
+ 273              	Do8Ways:
+ 274 0318 00482DE9 		stmfd sp!, {fp,lr}
+ 275 031c 04B08DE2 		add fp, sp, #4	// aizbidam fp, 1 vietu uz augsu no sp
+ 276 0320 20D04DE2 		sub sp, sp, #32	//atbrivojam vel 8 vietas uz leju stekaa
+ 277              	
+ 278 0324 024080E0 		add r4, r0, r2 //x+P
+ 279 0328 00408DE5 		str r4, [sp]
+ 280 032c 024040E0 		sub r4, r0, r2 //x-P
+ 281 0330 04408DE5 		str r4, [sp, #4]
+ 282 0334 034080E0 		add r4, r0, r3 //x+Q
+ 283 0338 08408DE5 		str r4, [sp, #8]
+ 284 033c 034040E0 		sub r4, r0, r3 //x-Q
+ 285 0340 0C408DE5 		str r4, [sp, #12]
+ARM GAS  agra.s 			page 6
+
+
+ 286 0344 024081E0 		add r4, r1, r2 //y+P
+ 287 0348 10408DE5 		str r4, [sp, #16]
+ 288 034c 024041E0 		sub r4, r1, r2 //y-P
+ 289 0350 14408DE5 		str r4, [sp, #20]
+ 290 0354 034081E0 		add r4, r1, r3 //y+Q
+ 291 0358 18408DE5 		str r4, [sp, #24]
+ 292 035c 034041E0 		sub r4, r1, r3 //y-Q
+ 293 0360 1C408DE5 		str r4, [sp, #28]
+ 294              	
+ 295 0364 34389FE5 		ldr r3, color_addr // ielade adresi uz .data lauku
+ 296 0368 002093E5 		ldr r2, [r3, #0]   // panem color_op adresi no .data lauka
+ 297              	
+ 298 036c 00009DE5 		ldr r0, [sp]
+ 299 0370 18109DE5 		ldr r1, [sp, #24]
+ 300 0374 04002DE9 		stmfd sp!, {r2}
+ 301 0378 FEFFFFEB 		bl pixel			//pixel(x+p, y+q, buffer);
+ 302 037c 0400BDE8 		ldmfd sp!, {r2}
+ 303              	
+ 304 0380 04009DE5 		ldr r0, [sp, #4]
+ 305 0384 18109DE5 		ldr r1, [sp, #24]
+ 306 0388 04002DE9 		stmfd sp!, {r2}
+ 307 038c FEFFFFEB 		bl pixel			//pixel(x-p, y+q, buffer);
+ 308 0390 0400BDE8 		ldmfd sp!, {r2}
+ 309              	
+ 310 0394 00009DE5 		ldr r0, [sp]
+ 311 0398 1C109DE5 		ldr r1, [sp, #28]
+ 312 039c 04002DE9 		stmfd sp!, {r2}
+ 313 03a0 FEFFFFEB 		bl pixel			//pixel(x+p, y-q, buffer);
+ 314 03a4 0400BDE8 		ldmfd sp!, {r2}
+ 315              	
+ 316 03a8 04009DE5 		ldr r0, [sp, #4]
+ 317 03ac 1C109DE5 		ldr r1, [sp, #28]
+ 318 03b0 04002DE9 		stmfd sp!, {r2}
+ 319 03b4 FEFFFFEB 		bl pixel			//pixel(x-p, y-q, buffer);
+ 320 03b8 0400BDE8 		ldmfd sp!, {r2}
+ 321              	
+ 322 03bc 08009DE5 		ldr r0, [sp, #8]
+ 323 03c0 10109DE5 		ldr r1, [sp, #16]
+ 324 03c4 04002DE9 		stmfd sp!, {r2}
+ 325 03c8 FEFFFFEB 		bl pixel			//pixel(x+q, y+p, buffer);
+ 326 03cc 0400BDE8 		ldmfd sp!, {r2}
+ 327              	
+ 328 03d0 0C009DE5 		ldr r0, [sp, #12]
+ 329 03d4 10109DE5 		ldr r1, [sp, #16]
+ 330 03d8 04002DE9 		stmfd sp!, {r2}
+ 331 03dc FEFFFFEB 		bl pixel			//pixel(x-q, y+p, buffer);
+ 332 03e0 0400BDE8 		ldmfd sp!, {r2}
+ 333              	
+ 334 03e4 08009DE5 		ldr r0, [sp, #8]
+ 335 03e8 14109DE5 		ldr r1, [sp, #20]
+ 336 03ec 04002DE9 		stmfd sp!, {r2}
+ 337 03f0 FEFFFFEB 		bl pixel			//pixel(x+q, y-p, buffer);
+ 338 03f4 0400BDE8 		ldmfd sp!, {r2}
+ 339              	
+ 340 03f8 0C009DE5 		ldr r0, [sp, #12]
+ 341 03fc 14109DE5 		ldr r1, [sp, #20]
+ 342 0400 04002DE9 		stmfd sp!, {r2}
+ARM GAS  agra.s 			page 7
+
+
+ 343 0404 FEFFFFEB 		bl pixel			//pixel(x-q, y-p, buffer);
+ 344 0408 0400BDE8 		ldmfd sp!, {r2}
+ 345              	
+ 346              	
+ 347 040c 04D04BE2 		sub sp, fp, #4	// aizbidam sp, 1 vietu uz leju no fp
+ 348 0410 0048BDE8 		ldmfd sp!, {fp,lr}
+ 349 0414 1EFF2FE1 		bx lr
+ 350              		.size	Do8Ways, .-Do8Ways
+ 351              	
+ 352              	
+ 353              		.global	SWAP
+ 354              		.type	SWAP, %function
+ 355              	SWAP:
+ 356 0418 00482DE9 		stmfd sp!, {fp,lr}
+ 357 041c 04B08DE2 		add fp, sp, #4	// aizbidam fp, 1 vietu uz augsu no sp
+ 358 0420 0CD04DE2 		sub	sp, sp, #12 // rezervejam 3 vietas stekaa
+ 359              	
+ 360 0424 00008DE5 		str	r0, [sp]		//x stekaa
+ 361 0428 04108DE5 		str	r1, [sp, #4]	//y stekaa
+ 362              	
+ 363 042c 00309DE5 		ldr	r3, [sp]		//x adrese
+ 364 0430 003093E5 		ldr	r3, [r3]		//*x
+ 365 0434 08308DE5 		str	r3, [sp, #8]	//*x stekaa
+ 366              	
+ 367 0438 04309DE5 		ldr	r3, [sp, #4]	//y adrese
+ 368 043c 002093E5 		ldr	r2, [r3]		//*y
+ 369              	
+ 370 0440 00309DE5 		ldr	r3, [sp]		//x adrese;
+ 371 0444 002083E5 		str	r2, [r3]		//*x = *y
+ 372              	
+ 373 0448 04309DE5 		ldr	r3, [sp, #4]	//y adrese
+ 374 044c 08209DE5 		ldr	r2, [sp, #8]	//*x
+ 375 0450 002083E5 		str	r2, [r3]		//*y = *x
+ 376              	
+ 377 0454 04D04BE2 		sub sp, fp, #4	// aizbidam sp, 1 vietu uz leju no fp
+ 378 0458 0048BDE8 		ldmfd sp!, {fp,lr}
+ 379 045c 1EFF2FE1 		bx lr
+ 380              		.size	SWAP, .-SWAP
+ 381              	
+ 382              	
+ 383              		.global	triangleFill
+ 384              		.type	triangleFill, %function
+ 385              	triangleFill:
+ 386 0460 00482DE9 		stmfd sp!, {fp,lr}
+ 387 0464 04B08DE2 		add	fp, sp, #4
+ 388 0468 60D04DE2 		sub	sp, sp, #96
+ 389 046c 0C008DE5 		str	r0, [sp, #12]	//x1
+ 390 0470 08108DE5 		str	r1, [sp, #8]	//y1
+ 391 0474 04208DE5 		str	r2, [sp, #4]	//x2
+ 392 0478 00308DE5 		str	r3, [sp]		//y2
+ 393              	
+ 394 047c 0030A0E3 		mov	r3, #0
+ 395 0480 28300BE5 		str	r3, [fp, #-40]	//changed1 = 0
+ 396 0484 0030A0E3 		mov	r3, #0
+ 397 0488 24300BE5 		str	r3, [fp, #-36]	//changed2 = 0
+ 398              	
+ 399 048c 08209DE5 		ldr	r2, [sp, #8]	//y1
+ARM GAS  agra.s 			page 8
+
+
+ 400 0490 00309DE5 		ldr	r3, [sp]		//y2
+ 401 0494 030052E1 		cmp	r2, r3			//if (y1 > y2)
+ 402 0498 050000DA 		ble	y1smaller
+ 403 049c 64104BE2 			sub	r1, fp, #100	//adress of y2
+ 404 04a0 5C004BE2 			sub	r0, fp, #92		//adress of y1
+ 405 04a4 FEFFFFEB 			bl	SWAP
+ 406 04a8 60104BE2 			sub	r1, fp, #96		//adress of x2
+ 407 04ac 58004BE2 			sub	r0, fp, #88		//adress of x1
+ 408 04b0 FEFFFFEB 			bl	SWAP
+ 409              		y1smaller:
+ 410 04b4 08209DE5 			ldr	r2, [sp, #8]	//y1
+ 411 04b8 08309BE5 			ldr	r3, [fp, #8]	//y3
+ 412 04bc 030052E1 			cmp	r2, r3			//if(y1 > y3)
+ 413 04c0 050000DA 			ble	y1smaller2
+ 414 04c4 08108BE2 				add	r1, fp, #8		//adress of y3
+ 415 04c8 5C004BE2 				sub	r0, fp, #92		//adress of y1
+ 416 04cc FEFFFFEB 				bl	SWAP
+ 417 04d0 58004BE2 				sub	r0, fp, #88		//adress of x1
+ 418 04d4 04108BE2 				add	r1, fp, #4		//adress of x3
+ 419 04d8 FEFFFFEB 				bl	SWAP
+ 420              			y1smaller2:
+ 421 04dc 00209DE5 				ldr	r2, [sp]		//y2
+ 422 04e0 08309BE5 				ldr	r3, [fp, #8]	//y3
+ 423 04e4 030052E1 				cmp	r2, r3			//if(y2 > y3)
+ 424 04e8 050000DA 				ble	y2smaller2
+ 425 04ec 08108BE2 					add	r1, fp, #8		//adress of y3
+ 426 04f0 64004BE2 					sub	r0, fp, #100	//adress of y2
+ 427 04f4 FEFFFFEB 					bl	SWAP
+ 428 04f8 60004BE2 					sub	r0, fp, #96		//adress of x2
+ 429 04fc 04108BE2 					add	r1, fp, #4		//adress of x3
+ 430 0500 FEFFFFEB 					bl	SWAP
+ 431              		y2smaller2:
+ 432 0504 0C309DE5 			ldr	r3, [sp, #12]		//x1
+ 433 0508 40300BE5 			str	r3, [fp, #-64]		//t2x = x1
+ 434 050c 44300BE5 			str	r3, [fp, #-68]		//t1x = t2x = x1
+ 435 0510 08309DE5 			ldr	r3, [sp, #8]		//y1
+ 436 0514 3C300BE5 			str	r3, [fp, #-60]		//y = y1
+ 437              	
+ 438 0518 04209DE5 			ldr	r2, [sp, #4]		//x2
+ 439 051c 0C309DE5 			ldr	r3, [sp, #12]		//x1
+ 440 0520 033042E0 			sub	r3, r2, r3			//dx1 = (x2 - x1)
+ 441 0524 54300BE5 			str	r3, [fp, #-84]		//dx1 stekaa
+ 442 0528 000053E3 			cmp	r3, #0				//if(dx1<0)
+ 443 052c 040000AA 			bge	dxPos
+ 444 0530 003063E2 				rsb	r3, r3, #0			//dx1=-dx1;
+ 445 0534 54300BE5 				str	r3, [fp, #-84]
+ 446 0538 0030E0E3 				mvn	r3, #0				//signx1=0
+ 447 053c 20300BE5 				str	r3, [fp, #-32]		//signx1
+ 448 0540 010000EA 				b	dx2Check
+ 449              			dxPos:
+ 450 0544 0130A0E3 				mov	r3, #1
+ 451 0548 20300BE5 				str	r3, [fp, #-32]			//signx1=1
+ 452              	dx2Check:
+ 453 054c 00209DE5 		ldr	r2, [sp]		//y2
+ 454 0550 08309DE5 		ldr	r3, [sp, #8]			//y1
+ 455 0554 033042E0 		sub	r3, r2, r3		//dy1 = (y2 - y1)
+ 456 0558 50300BE5 		str	r3, [fp, #-80]	//dy1
+ARM GAS  agra.s 			page 9
+
+
+ 457              	
+ 458 055c 04209BE5 		ldr	r2, [fp, #4]	//x3
+ 459 0560 0C309DE5 		ldr	r3, [sp, #12]	//x1
+ 460 0564 033042E0 		sub	r3, r2, r3		//dx2 = (x3 - x1)
+ 461 0568 4C300BE5 		str	r3, [fp, #-76]	//dx2
+ 462              	
+ 463 056c 000053E3 		cmp	r3, #0		//if(dx2<0)
+ 464 0570 040000AA 		bge	dx2Pos
+ 465 0574 003063E2 		rsb	r3, r3, #0		//dx2=-dx2
+ 466 0578 4C300BE5 		str	r3, [fp, #-76]
+ 467 057c 0030E0E3 		mvn	r3, #0
+ 468 0580 1C300BE5 		str	r3, [fp, #-28]	//signx2=-1
+ 469 0584 010000EA 		b	valueSwap1
+ 470              	dx2Pos:
+ 471 0588 0130A0E3 		mov	r3, #1
+ 472 058c 1C300BE5 		str	r3, [fp, #-28]	//signx2=1;
+ 473              	valueSwap1:
+ 474 0590 08209BE5 		ldr	r2, [fp, #8]		//y3
+ 475 0594 08309DE5 		ldr	r3, [sp, #8]		//y1
+ 476 0598 033042E0 		sub	r3, r2, r3			//dy2 = (y3 - y1)
+ 477 059c 48300BE5 		str	r3, [fp, #-72]		//dy2
+ 478              	
+ 479 05a0 50201BE5 		ldr	r2, [fp, #-80]		//dy1
+ 480 05a4 54301BE5 		ldr	r3, [fp, #-84]		//dx1
+ 481 05a8 030052E1 		cmp	r2, r3
+ 482 05ac 040000DA 		ble	dy1S
+ 483 05b0 50104BE2 		sub	r1, fp, #80		// dy1 addr
+ 484 05b4 54004BE2 		sub	r0, fp, #84		// dx1 addr
+ 485 05b8 FEFFFFEB 		bl	SWAP
+ 486 05bc 0130A0E3 		mov	r3, #1
+ 487 05c0 28300BE5 		str	r3, [fp, #-40]		//changed1=1
+ 488              	dy1S:
+ 489 05c4 48201BE5 		ldr	r2, [fp, #-72]		//dy2
+ 490 05c8 4C301BE5 		ldr	r3, [fp, #-76]		//dx2
+ 491 05cc 030052E1 		cmp	r2, r3				//if (dy2 > dx2)
+ 492 05d0 040000DA 		ble	dy2S
+ 493 05d4 4C104BE2 		sub	r1, fp, #76		//dx2 addr
+ 494 05d8 48004BE2 		sub	r0, fp, #72		//dy2 addr
+ 495 05dc FEFFFFEB 		bl	SWAP
+ 496 05e0 0130A0E3 		mov	r3, #1
+ 497 05e4 24300BE5 		str	r3, [fp, #-36]	//changed2 = 1
+ 498              	dy2S:
+ 499 05e8 4C301BE5 		ldr	r3, [fp, #-76]	//dx2
+ 500 05ec C330A0E1 		asr	r3, r3, #1		//e2 = (dx2>>1)
+ 501 05f0 14300BE5 		str	r3, [fp, #-20]	//e2
+ 502              	
+ 503 05f4 08209DE5 		ldr	r2, [sp, #8] 	//y1
+ 504 05f8 00309DE5 		ldr	r3, [sp]		//y2
+ 505 05fc 030052E1 		cmp	r2, r3			//if(y1==y2)
+ 506 0600 8B00000A 		beq	next
+ 507 0604 54301BE5 		ldr	r3, [fp, #-84]	//dx1
+ 508 0608 C330A0E1 		asr	r3, r3, #1		//e1 = (dx1>>1)
+ 509 060c 18300BE5 		str	r3, [fp, #-24]	//e1
+ 510              	for:
+ 511 0610 0030A0E3 		mov	r3, #0		//int i=0
+ 512 0614 10300BE5 		str	r3, [fp, #-16]	//i
+ 513 0618 810000EA 		b	forTest
+ARM GAS  agra.s 			page 10
+
+
+ 514              	triLoop1:
+ 515 061c 0020A0E3 		mov	r2, #0
+ 516 0620 30200BE5 		str	r2, [fp, #-48]		//t1xp=0
+ 517 0624 0030A0E3 		mov	r3, #0
+ 518 0628 2C300BE5 		str	r3, [fp, #-44]		//t2xp=0
+ 519 062c 44201BE5 		ldr	r2, [fp, #-68]		//t1x
+ 520 0630 40301BE5 		ldr	r3, [fp, #-64]		//t2x
+ 521 0634 030052E1 		cmp	r2, r3				//if(t1x<t2x)
+ 522 0638 040000AA 		bge	t2xB
+ 523              		//minx=t1x; maxx=t2x;
+ 524 063c 44301BE5 		ldr	r3, [fp, #-68]
+ 525 0640 38300BE5 		str	r3, [fp, #-56]
+ 526 0644 40301BE5 		ldr	r3, [fp, #-64]
+ 527 0648 34300BE5 		str	r3, [fp, #-52]
+ 528 064c 200000EA 		b	triWhile1
+ 529              	t2xB:
+ 530              		//maxx=t1x; minx=t2x;
+ 531 0650 40301BE5 		ldr	r3, [fp, #-64]
+ 532 0654 38300BE5 		str	r3, [fp, #-56]
+ 533 0658 44301BE5 		ldr	r3, [fp, #-68]
+ 534 065c 34300BE5 		str	r3, [fp, #-52]
+ 535 0660 1B0000EA 		b	triWhile1
+ 536              	iSmaller1:
+ 537 0664 10301BE5 		ldr	r3, [fp, #-16]	//i
+ 538 0668 013083E2 		add	r3, r3, #1		//i++
+ 539 066c 10300BE5 		str	r3, [fp, #-16]
+ 540              		//e1 += dy1;
+ 541 0670 50301BE5 		ldr	r3, [fp, #-80] //dy1
+ 542 0674 18201BE5 		ldr	r2, [fp, #-24]
+ 543 0678 033082E0 		add	r3, r2, r3
+ 544 067c 18300BE5 		str	r3, [fp, #-24]
+ 545 0680 080000EA 		b	triWhile2
+ 546              	e1G:
+ 547              		//e1 -= dx1;
+ 548 0684 54301BE5 		ldr	r3, [fp, #-84] //dx1
+ 549 0688 18201BE5 		ldr	r2, [fp, #-24] //e1
+ 550 068c 033042E0 		sub	r3, r2, r3
+ 551 0690 18300BE5 		str	r3, [fp, #-24]
+ 552              		//if (changed1)
+ 553 0694 28301BE5 		ldr	r3, [fp, #-40] //changed1
+ 554 0698 000053E3 		cmp	r3, #0
+ 555 069c 1000000A 		beq	next1
+ 556              		//t1xp=signx1
+ 557 06a0 20301BE5 		ldr	r3, [fp, #-32]
+ 558 06a4 30300BE5 		str	r3, [fp, #-48]
+ 559              	triWhile2:
+ 560              		//(e1 >= dx1)
+ 561 06a8 54301BE5 		ldr	r3, [fp, #-84] //dx1
+ 562 06ac 18201BE5 		ldr	r2, [fp, #-24] //e1
+ 563 06b0 030052E1 		cmp	r2, r3
+ 564 06b4 F2FFFFAA 		bge	e1G
+ 565              		//if (changed1) break;
+ 566 06b8 28301BE5 		ldr	r3, [fp, #-40] //changed1
+ 567 06bc 000053E3 		cmp	r3, #0
+ 568 06c0 0700001A 		bne	next1
+ 569              		//else t1x += signx1;
+ 570 06c4 44201BE5 		ldr	r2, [fp, #-68] //signx1
+ARM GAS  agra.s 			page 11
+
+
+ 571 06c8 20301BE5 		ldr	r3, [fp, #-32] //t1x
+ 572 06cc 033082E0 		add	r3, r2, r3
+ 573 06d0 44300BE5 		str	r3, [fp, #-68]
+ 574              	triWhile1:
+ 575 06d4 54301BE5 		ldr	r3, [fp, #-84]		//dx1
+ 576 06d8 10201BE5 		ldr	r2, [fp, #-16]		//i
+ 577 06dc 030052E1 		cmp	r2, r3				//i<dx1
+ 578 06e0 DFFFFFBA 		blt	iSmaller1
+ 579              	next1:
+ 580              		//e2 += dy2;
+ 581 06e4 48301BE5 		ldr	r3, [fp, #-72] //dy2
+ 582 06e8 14201BE5 		ldr	r2, [fp, #-20] //e2
+ 583 06ec 033082E0 		add	r3, r2, r3
+ 584 06f0 14300BE5 		str	r3, [fp, #-20]
+ 585 06f4 080000EA 		b	triWhile3Cond
+ 586              	triWhile3:
+ 587              		//e2 -= dx2;
+ 588 06f8 4C301BE5 		ldr	r3, [fp, #-76]
+ 589 06fc 14201BE5 		ldr	r2, [fp, #-20]
+ 590 0700 033042E0 		sub	r3, r2, r3
+ 591 0704 14300BE5 		str	r3, [fp, #-20]
+ 592              		//if (changed2)
+ 593 0708 24301BE5 		ldr	r3, [fp, #-36]
+ 594 070c 000053E3 		cmp	r3, #0
+ 595 0710 0D00000A 		beq	next2
+ 596              		//t2xp=signx2
+ 597 0714 1C301BE5 		ldr	r3, [fp, #-28]
+ 598 0718 2C300BE5 		str	r3, [fp, #-44]
+ 599              	triWhile3Cond:
+ 600              		//while (e2 >= dx2)
+ 601 071c 4C301BE5 		ldr	r3, [fp, #-76] //dx2
+ 602 0720 14201BE5 		ldr	r2, [fp, #-20] //e2
+ 603 0724 030052E1 		cmp	r2, r3
+ 604 0728 F2FFFFAA 		bge	triWhile3
+ 605              		//if (changed2)
+ 606 072c 24301BE5 		ldr	r3, [fp, #-36]
+ 607 0730 000053E3 		cmp	r3, #0
+ 608 0734 0400001A 		bne	next2
+ 609              		//t2x += signx2;
+ 610 0738 40201BE5 		ldr	r2, [fp, #-64] //t2x
+ 611 073c 1C301BE5 		ldr	r3, [fp, #-28] //signx2
+ 612 0740 033082E0 		add	r3, r2, r3
+ 613 0744 40300BE5 		str	r3, [fp, #-64]
+ 614 0748 E5FFFFEA 		b	next1
+ 615              	next2:
+ 616              		//if(minx>t1x)
+ 617 074c 38201BE5 		ldr	r2, [fp, #-56]
+ 618 0750 44301BE5 		ldr	r3, [fp, #-68]
+ 619 0754 030052E1 		cmp	r2, r3
+ 620 0758 000000DA 		ble	minxS
+ 621 075c 38300BE5 		str	r3, [fp, #-56] //minx=t1x
+ 622              	minxS:
+ 623              		//if(minx>t2x)
+ 624 0760 38201BE5 		ldr	r2, [fp, #-56]
+ 625 0764 40301BE5 		ldr	r3, [fp, #-64]
+ 626 0768 030052E1 		cmp	r2, r3
+ 627 076c 000000DA 		ble	minxS2
+ARM GAS  agra.s 			page 12
+
+
+ 628 0770 38300BE5 		str	r3, [fp, #-56] //minx=t2x
+ 629              	minxS2:
+ 630              		//maxx<t1x
+ 631 0774 34201BE5 		ldr	r2, [fp, #-52]
+ 632 0778 44301BE5 		ldr	r3, [fp, #-68]
+ 633 077c 030052E1 		cmp	r2, r3
+ 634 0780 000000AA 		bge	maxxL
+ 635              		//maxx=t1x
+ 636 0784 34300BE5 		str	r3, [fp, #-52]
+ 637              	maxxL:
+ 638              		//if(maxx<t2x)
+ 639 0788 34201BE5 		ldr	r2, [fp, #-52]
+ 640 078c 40301BE5 		ldr	r3, [fp, #-64]
+ 641 0790 030052E1 		cmp	r2, r3
+ 642 0794 000000AA 		bge	maxxL2
+ 643 0798 34300BE5 		str	r3, [fp, #-52] //maxx=t2x
+ 644              	maxxL2:
+ 645              		//line(minx, y, maxx, y)
+ 646 079c 3C301BE5 		ldr	r3, [fp, #-60] //y
+ 647 07a0 34201BE5 		ldr	r2, [fp, #-52] //maxx
+ 648 07a4 3C101BE5 		ldr	r1, [fp, #-60]
+ 649 07a8 38001BE5 		ldr	r0, [fp, #-56] //minx
+ 650 07ac FEFFFFEB 		bl	line
+ 651              		//if(!changed1)
+ 652 07b0 28301BE5 		ldr	r3, [fp, #-40]
+ 653 07b4 000053E3 		cmp	r3, #0
+ 654 07b8 0300001A 		bne	changed3
+ 655 07bc 44201BE5 		ldr	r2, [fp, #-68]
+ 656 07c0 20301BE5 		ldr	r3, [fp, #-32]
+ 657 07c4 033082E0 		add	r3, r2, r3		//t1x += signx1
+ 658 07c8 44300BE5 		str	r3, [fp, #-68]
+ 659              	changed3:
+ 660              		//t1x+=t1xp;
+ 661 07cc 44201BE5 		ldr	r2, [fp, #-68]
+ 662 07d0 30301BE5 		ldr	r3, [fp, #-48]
+ 663 07d4 033082E0 		add	r3, r2, r3
+ 664 07d8 44300BE5 		str	r3, [fp, #-68]
+ 665              		//if(!changed2)
+ 666 07dc 24301BE5 		ldr	r3, [fp, #-36]
+ 667 07e0 000053E3 		cmp	r3, #0
+ 668 07e4 0300001A 		bne	changed4
+ 669 07e8 40201BE5 		ldr	r2, [fp, #-64]
+ 670 07ec 1C301BE5 		ldr	r3, [fp, #-28]
+ 671 07f0 033082E0 		add	r3, r2, r3		//t2x += signx2
+ 672 07f4 40300BE5 		str	r3, [fp, #-64]
+ 673              	changed4:
+ 674              		//t2x+=t2xp
+ 675 07f8 40201BE5 		ldr	r2, [fp, #-64]
+ 676 07fc 2C301BE5 		ldr	r3, [fp, #-44]
+ 677 0800 033082E0 		add	r3, r2, r3
+ 678 0804 40300BE5 		str	r3, [fp, #-64]
+ 679              		//y += 1;
+ 680 0808 3C301BE5 		ldr	r3, [fp, #-60] //y
+ 681 080c 013083E2 		add	r3, r3, #1
+ 682 0810 3C300BE5 		str	r3, [fp, #-60]
+ 683              		//if(y==y2) break
+ 684 0814 00309DE5 		ldr	r3, [sp]		//y2
+ARM GAS  agra.s 			page 13
+
+
+ 685 0818 3C201BE5 		ldr	r2, [fp, #-60]	//y
+ 686 081c 030052E1 		cmp	r2, r3
+ 687 0820 0300000A 		beq	next
+ 688              	forTest:
+ 689 0824 54301BE5 		ldr	r3, [fp, #-84]	//dx1
+ 690 0828 10201BE5 		ldr	r2, [fp, #-16]	//i
+ 691 082c 030052E1 		cmp	r2, r3			//i<dx1
+ 692 0830 79FFFFBA 		blt	triLoop1
+ 693              	next:
+ 694              		//dx1 = (x3 - x2)
+ 695 0834 04209BE5 		ldr	r2, [fp, #4]
+ 696 0838 04309DE5 		ldr	r3, [sp, #4]
+ 697 083c 033042E0 		sub	r3, r2, r3
+ 698 0840 54300BE5 		str	r3, [fp, #-84]
+ 699              		//if(dx1<0)
+ 700 0844 000053E3 		cmp	r3, #0
+ 701 0848 050000AA 		bge	dx1G
+ 702              		//dx1=-dx1; signx1=-1
+ 703 084c 54301BE5 		ldr	r3, [fp, #-84]
+ 704 0850 003063E2 		rsb	r3, r3, #0
+ 705 0854 54300BE5 		str	r3, [fp, #-84]
+ 706 0858 0030E0E3 		mvn	r3, #0
+ 707 085c 20300BE5 		str	r3, [fp, #-32]
+ 708 0860 010000EA 		b	dy1Check
+ 709              	dx1G:
+ 710              		//signx1=1
+ 711 0864 0130A0E3 		mov	r3, #1
+ 712 0868 20300BE5 		str	r3, [fp, #-32]
+ 713              	dy1Check:
+ 714              		//dy1 = (y3 - y2)
+ 715 086c 08209BE5 		ldr	r2, [fp, #8]
+ 716 0870 00309DE5 		ldr	r3, [sp]
+ 717 0874 033042E0 		sub	r3, r2, r3
+ 718 0878 50300BE5 		str	r3, [fp, #-80]
+ 719              		//t1x=x2
+ 720 087c 04309DE5 		ldr	r3, [sp, #4]
+ 721 0880 44300BE5 		str	r3, [fp, #-68]
+ 722              		//if (dy1 > dx1)
+ 723 0884 50201BE5 		ldr	r2, [fp, #-80]
+ 724 0888 54301BE5 		ldr	r3, [fp, #-84]
+ 725 088c 030052E1 		cmp	r2, r3
+ 726 0890 050000DA 		ble	dy1S_2
+ 727              		//SWAP(&dy1,&dx1)
+ 728 0894 54104BE2 		sub	r1, fp, #84
+ 729 0898 50004BE2 		sub	r0, fp, #80
+ 730 089c FEFFFFEB 		bl	SWAP
+ 731              		//changed1 = 1
+ 732 08a0 0130A0E3 		mov	r3, #1
+ 733 08a4 28300BE5 		str	r3, [fp, #-40]
+ 734 08a8 010000EA 		b	for2
+ 735              	dy1S_2:
+ 736              		//changed1 = 0
+ 737 08ac 0030A0E3 		mov	r3, #0
+ 738 08b0 28300BE5 		str	r3, [fp, #-40]
+ 739              	for2:
+ 740              		//e1 = (dx1>>1)
+ 741 08b4 54301BE5 		ldr	r3, [fp, #-84]
+ARM GAS  agra.s 			page 14
+
+
+ 742 08b8 C330A0E1 		asr	r3, r3, #1
+ 743 08bc 18300BE5 		str	r3, [fp, #-24]
+ 744              		//int i = 0
+ 745 08c0 0030A0E3 		mov	r3, #0
+ 746 08c4 0C300BE5 		str	r3, [fp, #-12]
+ 747 08c8 910000EA 		b	iCheck
+ 748              	triFor:
+ 749              		//t1xp=0; t2xp=0;
+ 750 08cc 0030A0E3 		mov	r3, #0
+ 751 08d0 30300BE5 		str	r3, [fp, #-48]
+ 752 08d4 0030A0E3 		mov	r3, #0
+ 753 08d8 2C300BE5 		str	r3, [fp, #-44]
+ 754              		//if(t1x<t2x)
+ 755 08dc 44201BE5 		ldr	r2, [fp, #-68]
+ 756 08e0 40301BE5 		ldr	r3, [fp, #-64]
+ 757 08e4 030052E1 		cmp	r2, r3
+ 758 08e8 040000AA 		bge	t1xL
+ 759              		//minx=t1x; maxx=t2x;
+ 760 08ec 44301BE5 		ldr	r3, [fp, #-68]
+ 761 08f0 38300BE5 		str	r3, [fp, #-56]
+ 762 08f4 40301BE5 		ldr	r3, [fp, #-64]
+ 763 08f8 34300BE5 		str	r3, [fp, #-52]
+ 764 08fc 230000EA 		b	triWhileCond4
+ 765              	t1xL:
+ 766              		//minx=t2x; maxx=t1x;
+ 767 0900 40301BE5 		ldr	r3, [fp, #-64]
+ 768 0904 38300BE5 		str	r3, [fp, #-56]
+ 769 0908 44301BE5 		ldr	r3, [fp, #-68]
+ 770 090c 34300BE5 		str	r3, [fp, #-52]
+ 771 0910 1E0000EA 		b	triWhileCond4
+ 772              	triWhile4:
+ 773              		//e1 += dy1
+ 774 0914 50301BE5 		ldr	r3, [fp, #-80]
+ 775 0918 18201BE5 		ldr	r2, [fp, #-24]
+ 776 091c 033082E0 		add	r3, r2, r3
+ 777 0920 18300BE5 		str	r3, [fp, #-24]
+ 778              		//e1 >= dx1
+ 779 0924 54301BE5 		ldr	r3, [fp, #-84]
+ 780 0928 18201BE5 		ldr	r2, [fp, #-24]
+ 781 092c 030052E1 		cmp	r2, r3
+ 782 0930 080000BA 		blt	triWhile5exit
+ 783              		//e1 -= dx1;
+ 784 0934 54301BE5 		ldr	r3, [fp, #-84]
+ 785 0938 18201BE5 		ldr	r2, [fp, #-24]
+ 786 093c 033042E0 		sub	r3, r2, r3
+ 787 0940 18300BE5 		str	r3, [fp, #-24]
+ 788              		//if (changed1)
+ 789 0944 28301BE5 		ldr	r3, [fp, #-40]
+ 790 0948 000053E3 		cmp	r3, #0
+ 791 094c 1400000A 		beq	next3
+ 792              		//t1xp=signx1
+ 793 0950 20301BE5 		ldr	r3, [fp, #-32]
+ 794 0954 30300BE5 		str	r3, [fp, #-48]
+ 795              	triWhile5exit:
+ 796              		//if (changed1)
+ 797 0958 28301BE5 		ldr	r3, [fp, #-40]
+ 798 095c 000053E3 		cmp	r3, #0
+ARM GAS  agra.s 			page 15
+
+
+ 799 0960 0F00001A 		bne	next3
+ 800              		//t1x += signx1
+ 801 0964 44201BE5 		ldr	r2, [fp, #-68]
+ 802 0968 20301BE5 		ldr	r3, [fp, #-32]
+ 803 096c 033082E0 		add	r3, r2, r3
+ 804 0970 44300BE5 		str	r3, [fp, #-68]
+ 805              		//if(i<dx1)
+ 806 0974 54301BE5 		ldr	r3, [fp, #-84]
+ 807 0978 0C201BE5 		ldr	r2, [fp, #-12]
+ 808 097c 030052E1 		cmp	r2, r3
+ 809 0980 020000AA 		bge	triWhileCond4
+ 810              		//i++
+ 811 0984 0C301BE5 		ldr	r3, [fp, #-12]
+ 812 0988 013083E2 		add	r3, r3, #1
+ 813 098c 0C300BE5 		str	r3, [fp, #-12]
+ 814              	triWhileCond4:
+ 815              		//while(i<dx1)
+ 816 0990 54301BE5 		ldr	r3, [fp, #-84]
+ 817 0994 0C201BE5 		ldr	r2, [fp, #-12]
+ 818 0998 030052E1 		cmp	r2, r3
+ 819 099c DCFFFFBA 		blt	triWhile4
+ 820 09a0 FFFFFFEA 		b	next3
+ 821              	next3:
+ 822 09a4 180000EA 		b	triWhile5Cond
+ 823              	triWhile5:
+ 824              		//e2 += dy2;
+ 825 09a8 48301BE5 		ldr	r3, [fp, #-72]
+ 826 09ac 14201BE5 		ldr	r2, [fp, #-20]
+ 827 09b0 033082E0 		add	r3, r2, r3
+ 828 09b4 14300BE5 		str	r3, [fp, #-20]
+ 829 09b8 080000EA 		b	triWhile6Cond
+ 830              	triWhile6:
+ 831              		//e2 -= dx2
+ 832 09bc 4C301BE5 		ldr	r3, [fp, #-76]
+ 833 09c0 14201BE5 		ldr	r2, [fp, #-20]
+ 834 09c4 033042E0 		sub	r3, r2, r3
+ 835 09c8 14300BE5 		str	r3, [fp, #-20]
+ 836              		//if(changed2)
+ 837 09cc 24301BE5 		ldr	r3, [fp, #-36]
+ 838 09d0 000053E3 		cmp	r3, #0
+ 839 09d4 1100000A 		beq	next4
+ 840              		//t2xp=signx2
+ 841 09d8 1C301BE5 		ldr	r3, [fp, #-28]
+ 842 09dc 2C300BE5 		str	r3, [fp, #-44]
+ 843              	triWhile6Cond:
+ 844              		//(e2 >= dx2)
+ 845 09e0 4C301BE5 		ldr	r3, [fp, #-76]
+ 846 09e4 14201BE5 		ldr	r2, [fp, #-20]
+ 847 09e8 030052E1 		cmp	r2, r3
+ 848 09ec F2FFFFAA 		bge	triWhile6
+ 849              		//if (changed2)
+ 850 09f0 24301BE5 		ldr	r3, [fp, #-36]
+ 851 09f4 000053E3 		cmp	r3, #0
+ 852 09f8 0800001A 		bne	next4
+ 853              		//t2x += signx2
+ 854 09fc 40201BE5 		ldr	r2, [fp, #-64]
+ 855 0a00 1C301BE5 		ldr	r3, [fp, #-28]
+ARM GAS  agra.s 			page 16
+
+
+ 856 0a04 033082E0 		add	r3, r2, r3
+ 857 0a08 40300BE5 		str	r3, [fp, #-64]
+ 858              	triWhile5Cond:
+ 859              		//while (t2x!=x3)
+ 860 0a0c 04309BE5 		ldr	r3, [fp, #4]
+ 861 0a10 40201BE5 		ldr	r2, [fp, #-64]
+ 862 0a14 030052E1 		cmp	r2, r3
+ 863 0a18 E2FFFF1A 		bne	triWhile5
+ 864 0a1c FFFFFFEA 		b	next4
+ 865              	next4:
+ 866              		//if(minx>t1x)
+ 867 0a20 38201BE5 		ldr	r2, [fp, #-56]
+ 868 0a24 44301BE5 		ldr	r3, [fp, #-68]
+ 869 0a28 030052E1 		cmp	r2, r3
+ 870 0a2c 010000DA 		ble	minxS3
+ 871              		//minx=t1x
+ 872 0a30 44301BE5 		ldr	r3, [fp, #-68]
+ 873 0a34 38300BE5 		str	r3, [fp, #-56]
+ 874              	minxS3:
+ 875              		//if(minx>t2x)
+ 876 0a38 38201BE5 		ldr	r2, [fp, #-56]
+ 877 0a3c 40301BE5 		ldr	r3, [fp, #-64]
+ 878 0a40 030052E1 		cmp	r2, r3
+ 879 0a44 010000DA 		ble	minxS4
+ 880              		//minx=t2x
+ 881 0a48 40301BE5 		ldr	r3, [fp, #-64]
+ 882 0a4c 38300BE5 		str	r3, [fp, #-56]
+ 883              	minxS4:
+ 884              		//if(maxx<t1x)
+ 885 0a50 34201BE5 		ldr	r2, [fp, #-52]
+ 886 0a54 44301BE5 		ldr	r3, [fp, #-68]
+ 887 0a58 030052E1 		cmp	r2, r3
+ 888 0a5c 010000AA 		bge	maxxL3
+ 889              		//maxx=t1x
+ 890 0a60 44301BE5 		ldr	r3, [fp, #-68]
+ 891 0a64 34300BE5 		str	r3, [fp, #-52]
+ 892              	maxxL3:
+ 893              		//if(maxx<t2x)
+ 894 0a68 34201BE5 		ldr	r2, [fp, #-52]
+ 895 0a6c 40301BE5 		ldr	r3, [fp, #-64]
+ 896 0a70 030052E1 		cmp	r2, r3
+ 897 0a74 010000AA 		bge	maxxL4
+ 898              		//maxx=t2x
+ 899 0a78 40301BE5 		ldr	r3, [fp, #-64]
+ 900 0a7c 34300BE5 		str	r3, [fp, #-52]
+ 901              	maxxL4:
+ 902              		//line(minx, y, maxx, y);
+ 903 0a80 3C301BE5 		ldr	r3, [fp, #-60]
+ 904 0a84 34201BE5 		ldr	r2, [fp, #-52]
+ 905 0a88 3C101BE5 		ldr	r1, [fp, #-60]
+ 906 0a8c 38001BE5 		ldr	r0, [fp, #-56]
+ 907 0a90 FEFFFFEB 		bl	line
+ 908              		//if(!changed1)
+ 909 0a94 28301BE5 		ldr	r3, [fp, #-40]
+ 910 0a98 000053E3 		cmp	r3, #0
+ 911 0a9c 0300001A 		bne	notChanged
+ 912              		//t1x += signx1;
+ARM GAS  agra.s 			page 17
+
+
+ 913 0aa0 44201BE5 		ldr	r2, [fp, #-68]
+ 914 0aa4 20301BE5 		ldr	r3, [fp, #-32]
+ 915 0aa8 033082E0 		add	r3, r2, r3
+ 916 0aac 44300BE5 		str	r3, [fp, #-68]
+ 917              	notChanged:
+ 918              		// t1x+=t1xp;
+ 919 0ab0 44201BE5 		ldr	r2, [fp, #-68]
+ 920 0ab4 30301BE5 		ldr	r3, [fp, #-48]
+ 921 0ab8 033082E0 		add	r3, r2, r3
+ 922 0abc 44300BE5 		str	r3, [fp, #-68]
+ 923              		// if(!changed2)
+ 924 0ac0 24301BE5 		ldr	r3, [fp, #-36]
+ 925 0ac4 000053E3 		cmp	r3, #0
+ 926 0ac8 0300001A 		bne	notChanged2
+ 927              		//t2x += signx2
+ 928 0acc 40201BE5 		ldr	r2, [fp, #-64]
+ 929 0ad0 1C301BE5 		ldr	r3, [fp, #-28]
+ 930 0ad4 033082E0 		add	r3, r2, r3
+ 931 0ad8 40300BE5 		str	r3, [fp, #-64]
+ 932              	notChanged2:
+ 933              		//t2x+=t2xp
+ 934 0adc 40201BE5 		ldr	r2, [fp, #-64]
+ 935 0ae0 2C301BE5 		ldr	r3, [fp, #-44]
+ 936 0ae4 033082E0 		add	r3, r2, r3
+ 937 0ae8 40300BE5 		str	r3, [fp, #-64]
+ 938              		//y += 1
+ 939 0aec 3C301BE5 		ldr	r3, [fp, #-60]
+ 940 0af0 013083E2 		add	r3, r3, #1
+ 941 0af4 3C300BE5 		str	r3, [fp, #-60]
+ 942              		//if(y>y3)
+ 943 0af8 08309BE5 		ldr	r3, [fp, #8]
+ 944 0afc 3C201BE5 		ldr	r2, [fp, #-60]
+ 945 0b00 030052E1 		cmp	r2, r3
+ 946 0b04 060000CA 		bgt	return
+ 947 0b08 0C301BE5 		ldr	r3, [fp, #-12]
+ 948 0b0c 013083E2 		add	r3, r3, #1
+ 949 0b10 0C300BE5 		str	r3, [fp, #-12]
+ 950              	iCheck:
+ 951              		//i<=dx1
+ 952 0b14 54301BE5 		ldr	r3, [fp, #-84]
+ 953 0b18 0C201BE5 		ldr	r2, [fp, #-12]
+ 954 0b1c 030052E1 		cmp	r2, r3
+ 955 0b20 69FFFFDA 		ble	triFor
+ 956              	
+ 957              	return:
+ 958 0b24 04D04BE2 		sub	sp, fp, #4
+ 959 0b28 0048BDE8 		ldmfd sp!, {fp,lr}
+ 960 0b2c 1EFF2FE1 		bx lr
+ 961              		.size	triangleFill, .-triangleFill
+ 962              	
+ 963              	
+ 964              		.global	clear
+ 965              		.type	clear, %function
+ 966              	clear:
+ 967 0b30 00482DE9 		stmfd sp!, {fp,lr}
+ 968 0b34 04B08DE2 		add fp, sp, #4	// aizbidam fp, 1 vietu uz augsu no sp
+ 969 0b38 08D04DE2 		sub sp, sp, #8	//atbrivojam vel 2 vietas uz leju stekaa
+ARM GAS  agra.s 			page 18
+
+
+ 970 0b3c FEFFFFEB 		bl FrameBufferGetWidth
+ 971 0b40 00008DE5 		str r0, [sp]	// saglabajam r0 (FrameWidth) stekaa
+ 972 0b44 FEFFFFEB 		bl FrameBufferGetHeight
+ 973 0b48 04008DE5 		str r0, [sp, #4]	// saglabajam r0 (FrameHeight) stekaa
+ 974              	
+ 975 0b4c FEFFFFEB 		bl FrameBufferGetAddress
+ 976 0b50 0010A0E3 		mov r1, #0		//counter i (height)
+ 977 0b54 0020A0E3 		mov r2, #0		//counter j (width)
+ 978 0b58 0040A0E3 		mov r4, #0x00000000 //notirisanai
+ 979              		loop1:
+ 980 0b5c 0020A0E3 			mov r2, #0
+ 981              		loop2:
+ 982 0b60 00309DE5 			ldr r3, [sp]	// ielade FrameWidth no steka
+ 983 0b64 910303E0 			mul r3, r1, r3		//i*FrameWidth
+ 984 0b68 033082E0 			add r3, r2, r3		// +j
+ 985 0b6c 034080E7 			str r4, [r0, r3]	//r4 = buffer[i*FrameWidth+j]
+ 986              		test2:
+ 987 0b70 042082E2 			add r2, #4 // counter j + 4
+ 988 0b74 00309DE5 			ldr r3, [sp]	// ielade FrameWidth
+ 989 0b78 220153E1 			cmp r3, r2, lsr #2 // vai count < counter/4
+ 990 0b7c F7FFFF8A 			bhi loop2
+ 991              		test1:
+ 992 0b80 041081E2 			add r1, #4 // counter i + 4
+ 993 0b84 04309DE5 			ldr r3, [sp, #4]	// ielade FrameHeight
+ 994 0b88 210153E1 			cmp r3, r1, lsr #2 // vai count < counter/4
+ 995 0b8c F2FFFF8A 			bhi loop1
+ 996              	
+ 997 0b90 04D04BE2 		sub sp, fp, #4	// aizbidam sp, 1 vietu uz leju no fp
+ 998 0b94 0048BDE8 		ldmfd sp!, {fp,lr}
+ 999 0b98 0000A0E3 		mov r0, #0
+ 1000 0b9c 1EFF2FE1 		bx lr
+ 1001              		.size	clear, .-clear
+ 1002              	
+ 1003              	
+ 1004 0ba0 00000000 	color_addr: .word color_op
+ 1005 0ba4 04000000 	clean_addr: .word clean_flag
+ 1006              	
+ 1007              		.data
+ 1008              	color_op:
+ 1009 0000 00000000 		.word 0x00000000
+ 1010              	clean_flag:
+ 1011 0004 00       		.byte 0x00...
