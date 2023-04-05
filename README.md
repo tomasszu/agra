@@ -1,4 +1,4 @@
-<h1> Description of the graphic library "agra" </h1>
+<h1> Description of the graphics library "agra" </h1>
 <h3> Course project supervised by Dr. sc. comp Leo Seļāvo at the University of Latvia.</h3>
 <p> (Latviski apraksts pieejams repozitorijā esošajā failā apraksts.pdf) </p>
 <br>
